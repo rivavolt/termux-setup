@@ -135,8 +135,13 @@ cannot). Measured on the Pixel 3 after a real reboot: `locksettings verify`
 unlocked CE, then tailnet returned at t+10s and sshd (Termux:Boot → 20-plane-up)
 at t+50s — the whole plane recovered on its own.
 
-The real constraint is narrower: you must REACH adbd during BFU, and BFU Wi-Fi
-is intermittent. adbd comes back on 5555 (the persist prop survives) and answers
+The real constraint is narrower: you must REACH adbd during BFU. With the phone
+on a USB host there is no lottery at all: plain `adb devices` as the NORMAL
+user — systemd's uaccess tag grants the device ACL to the seated user. Do NOT
+`sudo adb`: a root-owned adb server presents root's (unauthorized) key and the
+handset answers `unauthorized`, which looks exactly like a permissions problem
+and isn't — kill root's server and rerun plain. Over the network it is flakier:
+adbd comes back on 5555 (the persist prop survives) and answers
 on the LAN, but the Wi-Fi association drops and returns while the phone is still
 BFU (CE-encrypted supplicant config), so the recovery window is flaky, not
 absent — adbd was reachable again at 2141s uptime, far past the first ~50s
@@ -146,6 +151,18 @@ while the SIM is at its PIN. The durable fix, if wanted, is a DE-stored Wi-Fi
 network the phone can join pre-unlock (unverified on this build). Bottom line:
 still design supervision that never needs a reboot, but a reboot is recoverable
 remotely on this rooted handset — it is not the dead end it first appeared.
+
+The SIM PIN can also be entered remotely, which brings cellular back without
+touching the handset — but only as per-digit keyevents:
+`input keyevent $((7+d))` for each digit d, then `input keyevent 66` to
+confirm. `input text` on the SIM prompt silently goes nowhere (rc=0, nothing
+typed), so a text-injection attempt looks like a wrong PIN was swallowed when
+in fact no digits arrived. Read the outcome from `getprop gsm.sim.state`
+(PIN_REQUIRED → LOADED), never from the screen: the SIM prompt is FLAG_SECURE
+so `screencap` returns black, and `mDreamingLockscreen` reads identically for
+the SIM prompt and the device keyguard. Mind the retry budget — ~3 wrong SIM
+PINs and it PUK-locks — so verify WHICH prompt is up (`gsm.sim.state`) before
+sending anything.
 
 Why recovery goes through the Termux app (launching its activity) and not
 `adb shell su -c sshd`: sshd has to run AS the Termux user (uid 10286) — its
