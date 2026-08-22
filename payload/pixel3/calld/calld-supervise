@@ -9,6 +9,10 @@
 #   calld.enabled  present  → the loop runs calld; absent → idle (provisioned
 #                            but not fighting the calld agent for the sound card)
 #   calld.stop     present  → the loop exits after the current child stops
+#   calld.env      present  → sourced before each start; carries secrets the
+#                            agent needs (DEEPGRAM_API_KEY), so keep it 0600
+#   calld.args     present  → extra serve arguments appended to the command
+#                            line via eval, so quoted values survive
 CALLD=${CALLD:-/data/local/tmp/calld}
 PORT=${CALLD_PORT:-8790}
 STATE=${CALLD_STATE:-/data/local/tmp}
@@ -105,8 +109,18 @@ while :; do
 
   wait_for_tailnet
   start_addr=$(tun_addr)
-  log "starting calld (tailnet=${start_addr:-none}): $CALLD serve --port $PORT"
-  "$CALLD" serve --port "$PORT" &
+  # Optional extras, read fresh each start so touch calld.restart applies them:
+  # calld.env is sourced (agent secrets), calld.args lands on the command line
+  # through eval so a quoted greeting survives word splitting. calld's own
+  # stdout goes to calld.log, truncated per start — service.sh discards the
+  # supervisor's stdout, so without this redirect the daemon's tracing output
+  # is lost entirely.
+  [ -f "$STATE/calld.env" ] && . "$STATE/calld.env"
+  EXTRA=""
+  [ -f "$STATE/calld.args" ] && EXTRA=$(cat "$STATE/calld.args")
+  log "starting calld (tailnet=${start_addr:-none}): $CALLD serve --port $PORT $EXTRA"
+  : > "$STATE/calld.log"
+  eval "\"\$CALLD\" serve --port \"\$PORT\" $EXTRA >> \"\$STATE/calld.log\" 2>&1 &"
   child=$!
 
   # Supervise by polling so we can react to four things at once: calld exiting,
