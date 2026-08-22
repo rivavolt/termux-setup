@@ -1,0 +1,6 @@
+id=tailscaled-root
+name=root tailscaled (netstack)
+version=v1
+versionCode=1
+author=rivavolt
+description=Runs the DE-state root tailscaled (node pixel3-root, 100.64.0.43) in netstack mode from late_start, so the tailnet survives BFU while the app's CE-locked tailscaled is still down. Netstack installs no routes or rules and cannot fight the app's VPN. Touch /data/adb/tailscale/disabled to keep it idle.
