@@ -96,9 +96,10 @@ while :; do
   # it and starting our own — idling here instead would leave it unwatched, with
   # nothing to recycle it out of a loopback-only bind.
   if ss -xl 2>/dev/null | grep -q '@calld'; then
-    orphan=$(pidof calld)
-    log "@calld bound by unsupervised calld (pid ${orphan:-unknown}), taking over"
-    stop_pid "$orphan"
+    orphans=$(pidof calld)
+    log "@calld bound by unsupervised calld (pid ${orphans:-unknown}), taking over"
+    # One pid at a time: pidof can return several, and stop_pid handed a multi-word arg fails its kill -0 probe and silently skips the stop, leaving the orphan holding @calld while our own start crash-loops against it.
+    for orphan in $orphans; do stop_pid "$orphan"; done
     sleep 1
   fi
 
